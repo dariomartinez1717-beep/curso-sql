@@ -1,0 +1,77 @@
+-- Consulta 1: Vista base del proyecto (INNER JOIN)
+-- Propósito: unir en una sola fila cada venta con los datos del cliente,
+-- su región, el producto y su categoría. Es la fuente de datos para Power BI.
+SELECT
+    v.id_venta,
+    v.fecha_venta,
+    c.id_cliente,
+    c.nombre                              AS cliente,
+    c.ciudad,
+    t.region,
+    p.nombre_producto                     AS producto,
+    cat.nombre_categoria                  AS categoria,
+    v.cantidad,
+    v.precio_unitario,
+    v.cantidad * v.precio_unitario        AS total_venta
+FROM ventas AS v
+INNER JOIN clientes    AS c   ON v.id_cliente    = c.id_cliente
+INNER JOIN territorios AS t   ON c.id_territorio = t.id_territorio
+INNER JOIN productos   AS p   ON v.id_producto   = p.id_producto
+INNER JOIN categorias  AS cat ON p.id_categoria  = cat.id_categoria
+ORDER BY v.fecha_venta;
+-- Hallazgo: la región Centro concentra $3.834 de los $6.444 facturados (59,5%),
+-- y por categoría Computación aporta $4.950 (76,8%). Cuyo es la región más baja ($510).
+
+-- Consulta 2: Clientes sin ventas (LEFT JOIN)
+-- Propósito: detectar clientes registrados que nunca compraron,
+-- para que el área de CRM los contacte.
+SELECT
+    c.nombre,
+    c.email,
+    c.fecha_registro
+FROM clientes AS c
+LEFT JOIN ventas AS v ON c.id_cliente = v.id_cliente
+WHERE v.id_venta IS NULL
+ORDER BY c.fecha_registro;
+
+-- Consulta 3: Productos sin ventas (LEFT JOIN)
+-- Propósito: identificar artículos del catálogo sin movimiento,
+-- para que el área de producto revise su precio o su promoción.
+SELECT
+    p.nombre_producto,
+    cat.nombre_categoria                  AS categoria,
+    p.precio
+FROM productos AS p
+LEFT JOIN ventas AS v
+       ON p.id_producto = v.id_producto
+INNER JOIN categorias AS cat
+       ON p.id_categoria = cat.id_categoria
+WHERE v.id_venta IS NULL
+ORDER BY p.precio DESC;
+-- Consulta 4: Consolidado por período (UNION ALL)
+SELECT
+    canal,
+    COUNT(*)                              AS cantidad_ventas,
+    SUM(total)                            AS total_canal
+FROM (
+    SELECT fecha_venta,
+           cantidad * precio_unitario     AS total,
+           'Del 1 al 10 de marzo'         AS canal
+    FROM ventas
+    WHERE DAY(fecha_venta) <= 10
+ 
+    UNION ALL
+ 
+    SELECT fecha_venta,
+           cantidad * precio_unitario     AS total,
+           'Del 11 al 31 de marzo'        AS canal
+    FROM ventas
+    WHERE DAY(fecha_venta) > 10
+) AS consolidado
+GROUP BY canal
+ORDER BY total_canal DESC;
+
+-- Hallazgo: 2 de los 8 productos no tienen ventas (Parlante Portátil y
+-- Webcam HD); ambos son de bajo precio y suman 45 unidades en stock sin rotar.
+-- Hallazgo: los primeros 10 días facturaron $3.620 (56,2%) contra $2.824
+-- de la segunda parte, con la misma cantidad de ventas (5 y 5).
